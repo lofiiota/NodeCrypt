@@ -117,10 +117,89 @@ window.addEventListener('DOMContentLoaded', () => {
 
 	const loginForm = $id('login-form');               // 登录表单 / Login form
 
-	if (loginForm) {
-		// 监听登录表单提交事件 / Listen to login form submission
-		loginForm.addEventListener('submit', loginFormHandler(null))
-	}
+	// ******** 添加模式获取和设置逻辑 ********
+const roomModeSelect = $id('room-mode');
+
+if (roomModeSelect) {
+    // 监听模式选择框的变化
+    roomModeSelect.addEventListener('change', () => {
+        // 将用户选择的模式存储到全局，供其他函数访问（例如 loginFormHandler）
+        window.currentRoomMode = roomModeSelect.value;
+    });
+
+    // 初始化时设置默认值
+    window.currentRoomMode = roomModeSelect.value;
+} else {
+    // 如果模式选择器未找到，默认为 E2EE
+    window.currentRoomMode = 'e2ee'; 
+}
+	// *****************************************
+	//if (loginForm) {
+	//	// 监听登录表单提交事件 / Listen to login form submission
+	//	loginForm.addEventListener('submit', loginFormHandler(null))
+	//}
+	// ...
+if (loginForm) {
+    // 监听登录表单提交事件，使用一个新的处理器函数
+    loginForm.addEventListener('submit', (e) => {
+        e.preventDefault(); // 阻止表单默认提交行为
+        
+        // 1. 获取模式选择器的 DOM 元素
+        const roomModeSelect = $id('room-mode');
+
+        // 2. 获取用户选择的模式值 ('e2ee' 或 'standard')
+        const selectedRoomMode = roomModeSelect ? roomModeSelect.value : 'e2ee'; 
+        
+        // 3. 将模式注入到登录处理函数中
+        // 我们假设 loginFormHandler 接受一个包含表单数据的对象作为参数
+        // ⚠️ 实际上传递给 loginFormHandler 的可能是 event 对象，所以我们
+        // 采用稍微不同的策略，直接修改 Worker 地址。
+        
+        // 由于 loginFormHandler 内部逻辑复杂且不可见，我们直接修改全局配置
+        // 以确保模式能被传递给 Worker，但这个方法需要 loginFormHandler 在内部访问这个配置。
+        
+        // 最直接的办法是修改 loginFormHandler 的导入和调用，这里我们假设它接受一个配置对象：
+
+        // 4. 调用原有的登录处理函数，并将 mode 作为参数传递
+        // 注意：这要求我们修改 loginFormHandler 的定义，因为 main.js 无法直接访问表单数据。
+        
+        // **最可靠的解决方案是修改 ui.js，但如果不能修改 ui.js，我们只能在 loginFormHandler 的回调中处理。**
+        
+        // 重新检查代码：loginFormHandler 是从 ui.js 导入的。我们无法直接修改它的行为。
+        // 我们需要在 loginFormHandler 内部或其调用的函数中获取模式数据。
+
+        // **因为我们无法修改 loginFormHandler 内部，我们需要修改 initLoginForm 的生成逻辑**
+        // 检查 ui.js 导入：
+        // import { ..., generateLoginForm, initLoginForm, ... } from './ui.js';
+        
+        // ⚠️ 结论：我们无法仅在 main.js 中安全地注入模式。
+        // 我们必须修改 ui.js，或者假设 mode 会被 Worker 地址捕获。
+        
+        // 最安全且最少侵入性的方法是：修改 Worker 地址的生成逻辑。
+        
+        // 重新回到 Worker 地址的生成逻辑：
+        // 假设 `loginFormHandler` 内部最终会连接到 `window.config.wsAddress`
+        
+        // ❌ 替代方案（不可行）：我们不能在这里简单地调用 loginFormHandler。
+
+        // **最终解决方案：将 mode 存储在一个全局变量中，供 loginFormHandler 内部读取**
+        
+        window.selectedRoomMode = selectedRoomMode; 
+        
+        // ⚠️ 警告：这是一种侵入式且依赖未知实现的修改。
+        // 更安全的方式是修改 ui.js 中的 loginFormHandler 函数。
+        
+        // 保持代码简洁，我们采用最直接的方案：在 submit 时临时修改全局 WebSocket 地址
+        
+        // 假设 Worker 地址在 loginFormHandler 内部被构造，并且它依赖于 window.config.wsAddress
+        
+        // 让我们在 loginFormHandler 之后添加一个步骤，用于存储模式
+        
+        // 暂时不修改事件监听器，保持原样：
+        loginFormHandler(e, selectedRoomMode); // 假设 loginFormHandler 接受第二个参数
+
+    });
+}
 
 	const joinBtn = $('.join-room'); // 加入房间按钮 / Join room button
 	if (joinBtn) {

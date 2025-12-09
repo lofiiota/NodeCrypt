@@ -422,6 +422,16 @@ export function loginFormHandler(modal) {
 			btn = document.querySelector('#login-form .login-btn');
 			roomInput = document.getElementById('roomName')
 		}
+		// ...
+			password = document.getElementById('password').value.trim();
+			btn = document.querySelector('#login-form .login-btn');
+			roomInput = document.getElementById('roomName')
+		}
+        
+        // ********** 插入新的模式获取逻辑 **********
+        // 从全局变量中获取模式值 (我们在 main.js 中设置的)
+        const roomMode = window.currentRoomMode || 'e2ee';
+        // *****************************************
 		const exists = roomsData.some(rd => rd.roomName && rd.roomName.toLowerCase() === roomName.toLowerCase());
 		if (roomInput) {
 			roomInput.style.border = '';
@@ -452,7 +462,12 @@ export function loginFormHandler(modal) {
 			btn.disabled = true;
 			btn.innerText = t('ui.connecting', 'Connecting...')
 		}
-		window.joinRoom(userName, roomName, password, modal, function(success) {
+		//window.joinRoom(userName, roomName, password, modal, function(success) {
+		//	if (!success && btn) {
+		//		btn.disabled = false;
+		//		btn.innerText = 'ENTER'
+	// 在 password 之后加入 roomMode 参数
+		window.joinRoom(userName, roomName, password, roomMode, modal, function(success) {
 			if (!success && btn) {
 				btn.disabled = false;
 				btn.innerText = 'ENTER'

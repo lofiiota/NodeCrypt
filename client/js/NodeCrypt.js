@@ -74,13 +74,35 @@ class NodeCrypt {
 
 	// Set user credentials (username, channel, password)
 	// 设置用户凭证（用户名、频道、密码）
-	setCredentials(username, channel, password) {
+	/*setCredentials(username, channel, password) {
 		this.logEvent('setCredentials');
 		try {
 			this.credentials = {
 				username: username,
 				channel: sha256(channel),
 				password: sha256(password)
+			}
+		} catch (error) {
+			this.logEvent('setCredentials', error, 'error');
+			return (false)
+		}
+		return (true)
+	}*/
+	// 设置用户凭证（用户名、频道、密码）
+	setCredentials(username, channel, password, roomMode) { // <--- 接受 roomMode
+		this.logEvent('setCredentials');
+        
+        // **新增**：保存原始参数和模式，用于 connect() 中构造 URL
+        this.userName = username;
+        this.roomName = channel;
+        this.password = password;
+        this.roomMode = roomMode || 'e2ee'; // <--- 保存模式
+        
+		try {
+			this.credentials = {
+				username: username,
+				channel: sha256(channel), // HASHED channel name (for server use)
+				password: sha256(password) // HASHED password (for server use)
 			}
 		} catch (error) {
 			this.logEvent('setCredentials', error, 'error');
@@ -101,12 +123,25 @@ class NodeCrypt {
 		this.serverKeys = null;
 		this.serverShared = null;
 		this.channel = {};
-		try {
+		/*try {
 			this.connection = new WebSocket(this.config.wsAddress);
 			this.connection.onopen = this.onOpen;
 			this.connection.onmessage = this.onMessage;
 			this.connection.onerror = this.onError;
-			this.connection.onclose = this.onClose
+			this.connection.onclose = this.onClose*/
+		// ...
+		try {
+            // 1. 计算密码哈希 (使用导入的 sha256 函数，与 NodeCrypt 的逻辑一致)
+			const pwdHash = this.password ? sha256(this.password) : '';
+			
+            // 2. 构造完整的 WebSocket URL，包含所有参数 (房间名、用户、密码哈希) 和 **新增的 mode 参数**
+            const wsUrl = `${this.config.wsAddress}/?room=${encodeURIComponent(this.roomName)}&user=${encodeURIComponent(this.userName)}&pwdHash=${encodeURIComponent(pwdHash)}&mode=${encodeURIComponent(this.roomMode)}`;
+
+            // 3. 使用完整的 URL 建立连接
+			this.connection = new WebSocket(wsUrl);
+			this.connection.onopen = this.onOpen;
+			this.connection.onmessage = this.onMessage;
+// ...
 		} catch (error) {
 			this.logEvent('connect', error, 'error');
 			return (false)

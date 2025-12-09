@@ -94,7 +94,8 @@ export function renderRooms(activeId = 0) {
 
 // Join a room
 // 加入一个房间
-export function joinRoom(userName, roomName, password, modal = null, onResult) {
+// 新增 roomMode 参数
+export function joinRoom(userName, roomName, password, roomMode, modal = null, onResult) {
 	const newRd = getNewRoomData();
 	newRd.roomName = roomName;
 	newRd.myUserName = userName;
@@ -135,7 +136,8 @@ export function joinRoom(userName, roomName, password, modal = null, onResult) {
 		onClientMessage: (msg) => handleClientMessage(idx, msg)
 	};
 	const chatInst = new window.NodeCrypt(window.config, callbacks);
-	chatInst.setCredentials(userName, roomName, password);
+	// 将 roomMode 添加到凭证中
+	chatInst.setCredentials(userName, roomName, password, roomMode);
 	chatInst.connect();
 	roomsData[idx].chat = chatInst
 }

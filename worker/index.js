@@ -106,12 +106,21 @@ export class ChatRoom {  constructor(state, env) {
     }
   }
 
+ // WebSocket connection event handler
   async fetch(request) {
     // Check for WebSocket upgrade
     const upgradeHeader = request.headers.get('Upgrade');
     if (!upgradeHeader || upgradeHeader !== 'websocket') {
       return new Response('Expected WebSocket Upgrade', { status: 426 });
     }
+
+    // --- NEW: Parse URL parameters ---
+    const url = new URL(request.url);
+    const room = url.searchParams.get('room');
+    const user = url.searchParams.get('user');
+    const pwdHash = url.searchParams.get('pwdHash');
+    const mode = url.searchParams.get('mode') || 'e2ee'; // <--- 获取模式，默认 'e2ee'
+    // ---------------------------------
 
     // Ensure RSA keys are initialized
     if (!this.keyPair) {
@@ -121,15 +130,20 @@ export class ChatRoom {  constructor(state, env) {
     const webSocketPair = new WebSocketPair();
     const [client, server] = Object.values(webSocketPair);
 
-    // Accept the WebSocket connection
-    this.handleSession(server);
+    // Accept the WebSocket connection, passing the parameters
+    // 将解析出的参数传递给 handleSession
+    this.handleSession(server, { room, user, pwdHash, mode }); // <--- UPDATED
 
     return new Response(null, {
       status: 101,
       webSocket: client,
     });
-  }  // WebSocket connection event handler
-  async handleSession(connection) {    connection.accept();
+  }                       
+  // Handle messages
+  // WebSocket connection event handler
+  // 接收一个新的 params 参数
+  async handleSession(connection, params) { // <--- UPDATED: accept params
+    connection.accept();
 
     // 清理旧连接
     await this.cleanupOldConnections();
@@ -141,16 +155,38 @@ export class ChatRoom {  constructor(state, env) {
       return;
     }
 
-    logEvent('connection', clientId, 'debug');    // Store client information
+    logEvent('connection', clientId, 'debug');
+    
+    // Store client information, including the new mode
     this.clients[clientId] = {
       connection: connection,
       seen: getTime(),
       key: null,
       shared: null,
-      channel: null
+      channel: null,
+      // --- NEW: Store client parameters and mode ---
+      room: params.room,
+      user: params.user,
+      pwdHash: params.pwdHash,
+      mode: params.mode // 'e2ee' or 'standard'
+      // --------------------------------------------
     };
+    
+    // Check if mode is 'standard' and skip key exchange/RSA public key sending
+    if (params.mode === 'standard') {
+        logEvent('mode-standard', clientId, 'debug');
+        
+        // 模拟 E2EE 握手完成，以便消息处理逻辑继续
+        this.clients[clientId].shared = new Uint8Array(32); // 使用一个虚拟的 shared key
+        
+        // **NEW: 直接发送频道加入消息，跳过密钥交换**
+        this.handleJoinChannel(clientId, { p: this.clients[clientId].room });
+        
+        // 直接返回，跳过后续的 RSA key 发送和 ECDH 逻辑
+        return;
+    }
 
-    // Send RSA public key
+    // Send RSA public key (ONLY in E2EE mode)
     try {
       logEvent('sending-public-key', clientId, 'debug');
       this.sendMessage(connection, JSON.stringify({
@@ -159,7 +195,9 @@ export class ChatRoom {  constructor(state, env) {
       }));
     } catch (error) {
       logEvent('sending-public-key', error, 'error');
-    }    // Handle messages
+    }
+    
+    // ... 后续逻辑保持不变 (E2EE 消息监听和处理)                      
     connection.addEventListener('message', async (event) => {
       const message = event.data;
 
@@ -175,8 +213,12 @@ export class ChatRoom {  constructor(state, env) {
       }
 
       logEvent('message', [clientId, message], 'debug');      // Handle key exchange
-      if (!this.clients[clientId].shared && message.length < 2048) {
+      /*if (!this.clients[clientId].shared && message.length < 2048) {
+        try {*/
+      // Handle key exchange (Skip if mode is standard)
+      if (this.clients[clientId].mode !== 'standard' && !this.clients[clientId].shared && message.length < 2048) { // <--- UPDATED
         try {
+// ... ECDH 密钥交换逻辑 ...
           // Generate ECDH key pair using P-384 curve (equivalent to secp384r1)
           const keys = await crypto.subtle.generateKey(
             {
@@ -278,19 +320,44 @@ export class ChatRoom {  constructor(state, env) {
     });
   }
   // Process encrypted messages
+  // Process messages (encrypted or plain JSON)
   processEncryptedMessage(clientId, message) {
     let decrypted = null;
+    const client = this.clients[clientId];
+    
+    // **新增逻辑：根据模式决定是否解密**
+    if (client.mode === 'standard') {
+        try {
+            // 在 Standard 模式下，消息应为明文 JSON 字符串
+            decrypted = JSON.parse(message);
+            logEvent('message-plain-parsed', [clientId, decrypted], 'debug');
+        } catch (error) {
+            logEvent('message-plain-parse-error', [clientId, error], 'error');
+            return; // 解析失败，忽略消息
+        }
+    } else {
+        // E2EE 模式：执行解密操作
+        try {
+            decrypted = decryptMessage(message, client.shared);
+            logEvent('message-decrypted', [clientId, decrypted], 'debug');
+        } catch (error) {
+            logEvent('message-decrypt-error', [clientId, error], 'error');
+            return; // 解密失败，忽略消息
+        }
+    }
+    // **模式判断结束，后续逻辑不变**
 
     try {
-      decrypted = decryptMessage(message, this.clients[clientId].shared);
-
-      logEvent('message-decrypted', [clientId, decrypted], 'debug');
-
+      // 检查解密/解析后的对象
       if (!isObject(decrypted) || !isString(decrypted.a)) {
         return;
       }
 
       const action = decrypted.a;
+      
+      // 注意：客户端在 E2EE 模式下会发送加密的 'j' (join) 消息。
+      // 在 Standard 模式下，我们已经在 handleSession 中模拟了加入，
+      // 所以 Standard 模式的客户端不会发送 'j' 消息，这里不需要特殊处理。
 
       if (action === 'j') {
         this.handleJoinChannel(clientId, decrypted);
@@ -301,11 +368,12 @@ export class ChatRoom {  constructor(state, env) {
       }
 
     } catch (error) {
-      logEvent('process-encrypted-message', [clientId, error], 'error');
+      logEvent('process-message-action', [clientId, error], 'error');
     } finally {
       decrypted = null;
     }
   }
+                       
   // Handle channel join requests
   handleJoinChannel(clientId, decrypted) {
     if (!isString(decrypted.p) || this.clients[clientId].channel) {
