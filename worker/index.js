@@ -160,8 +160,7 @@ export class ChatRoom {  constructor(state, env) {
       status: 101,
       webSocket: client,
     });
-  }
-                       
+  }                       
   /*async handleSession(connection) {    connection.accept();
   
     // 清理旧连接
@@ -250,8 +249,7 @@ export class ChatRoom {  constructor(state, env) {
       logEvent('sending-public-key', error, 'error');
     }
     
-    // ... 后续逻辑保持不变 (E2EE 消息监听和处理)
-    // ...                       
+    // ... 后续逻辑保持不变 (E2EE 消息监听和处理)                      
     connection.addEventListener('message', async (event) => {
       const message = event.data;
 
@@ -380,8 +378,7 @@ export class ChatRoom {  constructor(state, env) {
     try {
       decrypted = decryptMessage(message, this.clients[clientId].shared);
 
-      logEvent('message-decrypted', [clientId, decrypted], 'debug');
-                   
+      logEvent('message-decrypted', [clientId, decrypted], 'debug');             
       if (!isObject(decrypted) || !isString(decrypted.a)) {
         return;
       }
