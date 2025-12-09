@@ -106,29 +106,7 @@ export class ChatRoom {  constructor(state, env) {
     }
   }
 
-  /*async fetch(request) {
-    // Check for WebSocket upgrade
-    const upgradeHeader = request.headers.get('Upgrade');
-    if (!upgradeHeader || upgradeHeader !== 'websocket') {
-      return new Response('Expected WebSocket Upgrade', { status: 426 });
-    }
-
-    // Ensure RSA keys are initialized
-    if (!this.keyPair) {
-      await this.initRSAKeyPair();
-    }
-
-    const webSocketPair = new WebSocketPair();
-    const [client, server] = Object.values(webSocketPair);
-
-    // Accept the WebSocket connection
-    this.handleSession(server);
-
-    return new Response(null, {
-      status: 101,
-      webSocket: client,
-    });
-  } */ // WebSocket connection event handler
+ // WebSocket connection event handler
   async fetch(request) {
     // Check for WebSocket upgrade
     const upgradeHeader = request.headers.get('Upgrade');
@@ -161,37 +139,7 @@ export class ChatRoom {  constructor(state, env) {
       webSocket: client,
     });
   }                       
-  /*async handleSession(connection) {    connection.accept();
-  
-    // 清理旧连接
-    await this.cleanupOldConnections();
-
-    const clientId = generateClientId();
-
-    if (!clientId || this.clients[clientId]) {
-      this.closeConnection(connection);
-      return;
-    }
-
-    logEvent('connection', clientId, 'debug');    // Store client information
-    this.clients[clientId] = {
-      connection: connection,
-      seen: getTime(),
-      key: null,
-      shared: null,
-      channel: null
-    };
-
-    // Send RSA public key
-    try {
-      logEvent('sending-public-key', clientId, 'debug');
-      this.sendMessage(connection, JSON.stringify({
-        type: 'server-key',
-        key: this.keyPair.rsaPublic
-      }));
-    } catch (error) {
-      logEvent('sending-public-key', error, 'error');
-    } */   // Handle messages
+  // Handle messages
   // WebSocket connection event handler
   // 接收一个新的 params 参数
   async handleSession(connection, params) { // <--- UPDATED: accept params
@@ -372,33 +320,6 @@ export class ChatRoom {  constructor(state, env) {
     });
   }
   // Process encrypted messages
-  /*processEncryptedMessage(clientId, message) {
-    let decrypted = null;
-
-    try {
-      decrypted = decryptMessage(message, this.clients[clientId].shared);
-
-      logEvent('message-decrypted', [clientId, decrypted], 'debug');             
-      if (!isObject(decrypted) || !isString(decrypted.a)) {
-        return;
-      }
-
-      const action = decrypted.a;
-
-      if (action === 'j') {
-        this.handleJoinChannel(clientId, decrypted);
-      } else if (action === 'c') {
-        this.handleClientMessage(clientId, decrypted);
-      } else if (action === 'w') {
-        this.handleChannelMessage(clientId, decrypted);
-      }
-
-    } catch (error) {
-      logEvent('process-encrypted-message', [clientId, error], 'error');
-    } finally {
-      decrypted = null;
-    }
-  }*/
   // Process messages (encrypted or plain JSON)
   processEncryptedMessage(clientId, message) {
     let decrypted = null;
