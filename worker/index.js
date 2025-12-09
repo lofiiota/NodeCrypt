@@ -80,7 +80,7 @@ export class ChatRoom {
             name: 'RSASSA-PKCS1-v1_5',
             modulusLength: 2048,
             publicExponent: new Uint8Array([1, 0, 1]),
-            hash: 'SHA-256'
+            hash: { name: 'SHA-256' }
           },
           true,
           ['sign', 'verify']
@@ -115,7 +115,7 @@ export class ChatRoom {
         privateKeyBuffer,
         {
           name: 'RSASSA-PKCS1-v1_5',
-          hash: 'SHA-256'
+          hash: { name: 'SHA-256' }
         },
         false,
         ['sign']
@@ -162,9 +162,11 @@ export class ChatRoom {
     }
 
     const webSocketPair = new WebSocketPair();
+    // Cloudflare WebSocketPair 是类数组/对象，使用 Object.values 以兼容不同写法
     const [clientSide, serverSide] = Object.values(webSocketPair);
 
     // 将 server side socket 交给 handleSession，并传递解析后的参数
+    // handleSession 会自行 accept()，这里不需要 await（握手与后续事件由 DO 处理）
     this.handleSession(serverSide, { room, user, pwdHash, mode });
 
     return new Response(null, {
@@ -175,7 +177,14 @@ export class ChatRoom {
 
   // ---------- Accept a new session (WebSocket server side) ----------
   async handleSession(connection, params) {
-    connection.accept();
+    // 接收 WebSocket 连接
+    try {
+      connection.accept();
+    } catch (err) {
+      logEvent('handleSession-accept', err, 'error');
+      try { connection.close(); } catch (e) {}
+      return;
+    }
 
     // 清理旧连接
     await this.cleanupOldConnections();
@@ -215,6 +224,7 @@ export class ChatRoom {
       // 监听消息：标准模式下期望明文 JSON 字符串
       connection.addEventListener('message', async (event) => {
         const message = event.data;
+        if (!this.clients[clientId]) return;
         this.clients[clientId].seen = getTime();
 
         if (!isString(message)) return;
@@ -375,7 +385,9 @@ export class ChatRoom {
 
     if (this.clients[clientId]) {
       try {
-        this.clients[clientId].connection.close();
+        if (this.clients[clientId].connection) {
+          this.clients[clientId].connection.close();
+        }
       } catch (e) {
         // ignore
       }
